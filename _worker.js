@@ -4,7 +4,7 @@ import {
 
 const te = new TextEncoder();
 const td = new TextDecoder();
-const UUID = '00000000-0000-1000-9000-000000000000';
+const UUID = '7888888-8888-4f73-8888-f2c15d3e332c';
 const EXPECTED_UUID_BYTES = new Uint8Array(16);
 {
 	const uuidHex = UUID.replace(/-/g, '');
