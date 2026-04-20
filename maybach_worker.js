@@ -1,14 +1,14 @@
 /**
  * Date: 2026-04-16
- * Version: 2.6.1 (Ultimate Streaming & Active Sonar Edition)
- * Description: Features Smart Active Probing (Sonar) to detect silent disconnects for long-lived WS connections (Gemini/ChatGPT), while remaining perfectly tolerant of YouTube's chunked video buffering.
+ * Version: 2.6.2 (Ultimate Streaming & Active Sonar Edition - Max Throughput Optimized)
+ * Description: Features Smart Active Probing (Sonar) to detect silent disconnects for long-lived WS connections (Gemini/ChatGPT), while remaining perfectly tolerant of YouTube's chunked video buffering. Includes expanded memory pools and aggressive chunking for global high-latency nodes.
  */
 
 import { connect as $c } from 'cloudflare:sockets';
 const _ = o => $c(o);
 
 // ================= 个人极速配置 =================
-const UUID = "00000000-0000-4000-b000-000000000000"; 
+const UUID = ""; 
 
 let PIP = 'ProxyIP.CMLiussss.net';  
 let SUB = 'sub.cmliussss.net';  
@@ -35,11 +35,11 @@ const vID = u => u.length >= 17 &&
     u[9]===EB[8] && u[10]===EB[9] && u[11]===EB[10] && u[12]===EB[11] && 
     u[13]===EB[12] && u[14]===EB[13] && u[15]===EB[14] && u[16]===EB[15];
 
-// ================= stallTCP 核心：内存池 (增强抗内存泄露) =================
+// ================= stallTCP 核心：内存池 (增强抗内存泄露与高吞吐) =================
 class Pool {
-    constructor() { this.buf = new ArrayBuffer(16384); this.ptr = 0; this.pool = []; this.max = 12; this.large = false; }
+    constructor() { this.buf = new ArrayBuffer(131072); this.ptr = 0; this.pool = []; this.max = 32; this.large = false; }
     alloc = s => {
-        if (s <= 4096 && s <= 16384 - this.ptr) { const v = new Uint8Array(this.buf, this.ptr, s); this.ptr += s; return v; } 
+        if (s <= 8192 && s <= 131072 - this.ptr) { const v = new Uint8Array(this.buf, this.ptr, s); this.ptr += s; return v; } 
         const r = this.pool.pop();
         if (r && r.byteLength >= s) return new Uint8Array(r.buffer, 0, s); return new Uint8Array(s);
     };
@@ -47,8 +47,8 @@ class Pool {
         if (b.buffer === this.buf) { this.ptr = Math.max(0, this.ptr - b.length); return; }
         if (this.pool.length < this.max && b.byteLength >= 1024) this.pool.push(b);
     }; 
-    enableLarge = () => { this.large = true; }; 
-    reset = () => { this.ptr = 0; this.pool = []; this.large = false; };
+    enableLarge = () => { this.large = true; this.max = 64; }; 
+    reset = () => { this.ptr = 0; this.pool = []; this.large = false; this.max = 32; };
 }
 
 const MAX_PENDING = 16777216, MAX_RECONN = 10;
@@ -68,7 +68,7 @@ export default {
                     if (u.pathname === `/sub` && u.searchParams.get('uuid') !== UUID) return new Response("Invalid", { status: 403 });
                     return await hSub(req, env, u, UA, u.hostname);
                 }
-                return new Response("Active Sonar Streaming Engine v2.6.1 Active.", { status: 200 });
+                return new Response("Active Sonar Streaming Engine v2.6.2 (Max Throughput) Active.", { status: 200 });
             }
 
             if (u.pathname.includes('%3F')) {
@@ -124,16 +124,16 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
     let stats = { tot: 0, cnt: 0, big: 0, win: 0, ts: Date.now() }; 
     let mode = 'direct', avgSz = 0, tputs = [];
     let isReconnecting = false;
-    let isProbing = false; // 智能探针锁
+    let isProbing = false; 
 
     const updateMode = s => {
         stats.tot += s; stats.cnt++; if (s > 8192) stats.big++; avgSz = avgSz * 0.9 + s * 0.1; const now = Date.now();
         if (now - stats.ts > 1000) {
             const rate = stats.win; tputs.push(rate); if (tputs.length > 5) tputs.shift(); stats.win = s; stats.ts = now;
             const avg = tputs.reduce((a, b) => a + b, 0) / tputs.length;
-            if (stats.cnt >= 20) {
-                if (avg > 20971520 && avgSz > 16384) { if (mode !== 'buffered') { mode = 'buffered'; pool.enableLarge(); } }
-                else if (avg < 5242880 || avgSz < 8192) { if (mode !== 'direct') mode = 'direct'; }
+            if (stats.cnt >= 10) { 
+                if (avg > 10485760 && avgSz > 8192) { if (mode !== 'buffered') { mode = 'buffered'; pool.enableLarge(); } } 
+                else if (avg < 2621440 || avgSz < 4096) { if (mode !== 'direct') mode = 'direct'; } 
                 else { if (mode !== 'adaptive') mode = 'adaptive'; }
             }
         } else { stats.win += s; }
@@ -198,14 +198,14 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
                     }
 
                     if (mode === 'buffered') {
-                        if (v.length < 32768) {
+                        if (v.length < 65536) { 
                             batch.push(v); bSz += v.length;
-                            if (bSz >= 262144) flush(); else if (!bTmr) bTmr = setTimeout(flush, 5);
+                            if (bSz >= 524288) flush(); else if (!bTmr) bTmr = setTimeout(flush, 8); 
                         } else { flush(); if(isWS && ws.readyState===1) ws.send(v); else if(!isWS) cW.write(v).catch(()=>{}); }
                     } else { // adaptive
-                        if (v.length < 4096) {
+                        if (v.length < 8192) { 
                             batch.push(v); bSz += v.length;
-                            if (bSz >= 65536) flush(); else if (!bTmr) bTmr = setTimeout(flush, 10);
+                            if (bSz >= 131072) flush(); else if (!bTmr) bTmr = setTimeout(flush, 12);
                         } else { flush(); if(isWS && ws.readyState===1) ws.send(v); else if(!isWS) cW.write(v).catch(()=>{}); }
                     }
                 } 
