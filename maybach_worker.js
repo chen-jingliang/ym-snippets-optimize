@@ -1,14 +1,15 @@
 /**
- * Date: 2026-04-21 
- * Version: 2.6.7 (Gigabit V8-Bypass Edition)
- * Description: Total obliteration of JS-level buffering with V8 branch unrolling. The hot loop contains zero conditional jumps, maximizing CPU instruction cache hits for 1000M+ physical networks.
+ * Date: 2026-05-08
+ * Version: 2.6.8 (Gigabit V8-Bypass Edition - Optimized)
+ * Description: Total obliteration of JS-level buffering with V8 branch unrolling. 
+ * Micro-adjustments for memory leak prevention, internal DNS routing, and graceful connection degradation.
  */
 
 import { connect as $c } from 'cloudflare:sockets';
 const _ = o => $c(o);
 
 // ================= 个人极速配置 =================
-const UUID = "00000000-0000-4000-b000-000000000000"; 
+const UUID = ""; 
 
 // 🚨 警告：千兆网络下，必须将此处替换为日本本地的优质 ProxyIP，否则速度会被彻底锁死！
 let PIP = 'ProxyIP.CMLiussss.net';  
@@ -53,7 +54,7 @@ export default {
                     if (u.pathname === `/sub` && u.searchParams.get('uuid') !== UUID) return new Response("Invalid", { status: 403 });
                     return await hSub(req, env, u, UA, u.hostname);
                 }
-                return new Response("Active Sonar Streaming Engine v2.6.7 (Gigabit V8-Bypass) Active.", { status: 200 });
+                return new Response("Active Sonar Streaming Engine v2.6.8 (Gigabit V8-Bypass) Active.", { status: 200 });
             }
 
             if (u.pathname.includes('%3F')) {
@@ -65,7 +66,8 @@ export default {
             if (req.cf?.colo && activePip.toLowerCase().includes('cmliussss.net')) {
                 activePip = `${req.cf.colo}.PrOxYip.CmLiuSsSs.nEt:443`;
             } else if (activePip.includes(',')) {
-                const arr = activePip.split(',');
+                // 优化：过滤可能的空字符串元素，提升随机抽取稳定性
+                const arr = activePip.split(',').map(s => s.trim()).filter(Boolean);
                 activePip = arr[Math.floor(Math.random() * arr.length)];
             }
             
@@ -122,7 +124,8 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         readable.pipeTo(new WritableStream({
             async write(q) {
                 try {
-                    const res = await fetch('https://1.1.1.1/dns-query', { method: 'POST', headers: { 'content-type': 'application/dns-message' }, body: q, cf:{cacheTtl:3600} });
+                    // 优化：改为 cloudflare-dns.com 触发内网短路路由，解析速度更快
+                    const res = await fetch('https://cloudflare-dns.com/dns-query', { method: 'POST', headers: { 'content-type': 'application/dns-message' }, body: q, cf:{cacheTtl:3600} });
                     if (res.ok) {
                         const r8 = new Uint8Array(await res.arrayBuffer());
                         const out = new Uint8Array([...(sent ? [] : header), r8.length >> 8, r8.length & 0xff, ...r8]);
@@ -135,19 +138,17 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         udpWriter = writable.getWriter();
     };
 
-    // 2.6.7 核心：V8 引擎分支预判穿透 (Hot Loop Unrolling)
+    // 核心：V8 引擎分支预判穿透 (Hot Loop Unrolling)
     const readLoop = async () => {
         if (reading) return; reading = true;
         try {
             if (isWS && ws.readyState === 1) {
-                // 纯净 WebSocket 转发回路：没有任何条件跳转
                 while (true) {
                     const { done, value: v } = await r.read();
                     if (done) break;
                     if (v) { hasAct = true; ws.send(v); }
                 }
             } else if (!isWS && cW) {
-                // 纯净 HTTP 转发回路
                 while (true) {
                     const { done, value: v } = await r.read();
                     if (done) break;
@@ -158,7 +159,8 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
             }
             cleanup(); if (isWS) ws.close(1000);
         } catch (e) { 
-            cleanup(); if (isWS) ws.close(1011); 
+            // 优化：将 1011 改为 1006，防止部分客户端激进重试导致死锁
+            cleanup(); if (isWS && ws.readyState === 1) ws.close(1006); 
         } finally { 
             reading = false; 
         }
@@ -179,8 +181,8 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
     };
 
     const reconn = async () => {
-        if (!inf || (isWS && ws.readyState !== 1)) { cleanup(); if(isWS) ws.close(1011); return; }
-        if (reconns >= MAX_RECONN) { cleanup(); if(isWS) ws.close(1011); return; }
+        if (!inf || (isWS && ws.readyState !== 1)) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); return; }
+        if (reconns >= MAX_RECONN) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); return; }
         
         if (conn || isReconnecting) return; isReconnecting = true; reconns++; 
         
@@ -201,7 +203,7 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         } catch (e) { 
             conn = false; 
             if (reconns < MAX_RECONN && (!isWS || ws.readyState === 1)) setTimeout(() => { isReconnecting = false; reconn(); }, 500); 
-            else { cleanup(); if(isWS) ws.close(1011); }
+            else { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
         } finally { isReconnecting = false; }
     };
 
@@ -216,6 +218,7 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
             isProbing = true;
 
             try {
+                // 仅发送最小空报文，触发活动即可，避免拥塞控制锁死
                 const probePromise = w.write(new Uint8Array(0));
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Probe Timeout')), 3000));
                 await Promise.race([probePromise, timeoutPromise]);
@@ -223,7 +226,7 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
             } catch (err) {
                 isProbing = false; reconn(); 
             } finally { isProbing = false; }
-        }, 12000); 
+        }, 15000); // 优化：将探针间隔放宽至 15 秒，减少不必要的 Worker 唤醒开销
     };
 
     const cleanSock = () => { 
@@ -232,7 +235,13 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         r = null; w = null; sock = null;
     };
     
-    const cleanup = () => { Object.values(tmrs).forEach(clearInterval); cleanSock(); };
+    const cleanup = () => { 
+        Object.values(tmrs).forEach(clearInterval); 
+        cleanSock(); 
+        // 优化：彻底释放原始流，杜绝大流量测速后的 Worker 内存泄漏
+        try { cW?.close(); } catch {}
+        try { udpWriter?.close(); } catch {}
+    };
 
     const processData = async (data) => {
         try {
@@ -272,10 +281,10 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
                 if (isDNS) return udpWriter.write(data).catch(()=>{});
                 hasAct = true;
                 if (!conn && w) {
-                    try { await w.write(data); } catch { cleanup(); if(isWS) ws.close(1011); }
+                    try { await w.write(data); } catch { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
                 }
             }
-        } catch (err) { cleanup(); if(isWS) ws.close(1006); }
+        } catch (err) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
     };
 
     cR.pipeTo(new WritableStream({ write: processData })).catch(()=>{});
@@ -307,7 +316,7 @@ function parsePC(p){
   if(im){
     let val = im[1];
     if (val.includes(',')) {
-        const arr = val.split(',');
+        const arr = val.split(',').map(s=>s.trim()).filter(Boolean);
         val = arr[Math.floor(Math.random() * arr.length)];
     }
     const[a,rt]=pAddrPt(val);
