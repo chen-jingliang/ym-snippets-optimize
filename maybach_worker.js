@@ -1,5 +1,5 @@
 /**
- * Date: 2026-04-21
+ * Date: 2026-04-21 
  * Version: 2.6.7 (Gigabit V8-Bypass Edition)
  * Description: Total obliteration of JS-level buffering with V8 branch unrolling. The hot loop contains zero conditional jumps, maximizing CPU instruction cache hits for 1000M+ physical networks.
  */
