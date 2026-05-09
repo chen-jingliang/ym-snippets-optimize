@@ -12,14 +12,14 @@ const UUID = "";
 
 // 🚨 警告：千兆网络下，必须将此处替换为日本本地的优质 ProxyIP，否则速度会被彻底锁死！
 let PIP = 'ProxyIP.CMLiussss.net';  
-let SUB = 'sub.cmliussss.net';  
+let SUB = 'owo.o00o.ooo';  
 let SUBAPI = 'https://subapi.cmliussss.net';  
 let SUBINI = 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini'; 
 const SBV12 = 'https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json'; 
 const SBV11 = 'https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json'; 
 const ST = "";  
 const ECH = true;  
-const ECH_DNS = 'https://doh.cmliussss.net/CMLiussss';  
+const ECH_DNS = 'https://odvr.nic.cz/doh';  
 const ECH_SNI = 'cloudflare-ech.com';  
 const FP = ECH ? 'chrome' : 'randomized';  
 
