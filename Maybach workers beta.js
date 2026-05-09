@@ -9,11 +9,11 @@ import { connect as $c } from 'cloudflare:sockets';
 const _ = o => $c(o);
 
 // ================= 个人配置  =================
-const UUID = ""; 
+const UUID = "00000000-0000-4000-b000-000000000000"; 
 
 // 🚨 警告：千兆网络下，必须将此处替换为日本本地的优质 ProxyIP，否则速度会被彻底锁死！
 let PIP = 'ProxyIP.CMLiussss.net';  
-let SUB = 'sub.cmliussss.net';  
+let SUB = 'owo.o00o.ooo';  
 let SUBAPI = 'https://subapi.cmliussss.net';  
 let SUBINI = 'https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini'; 
 const SBV12 = 'https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json'; 
@@ -220,13 +220,14 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
             try {
                 // 仅发送最小空报文，触发活动即可，避免拥塞控制锁死
                 const probePromise = w.write(new Uint8Array(0));
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Probe Timeout')), 3000));
+                // 优化：修改超时时间为 10000 毫秒 (10秒)，容忍长视频缓冲时的网络抖动
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Probe Timeout')), 10000));
                 await Promise.race([probePromise, timeoutPromise]);
                 hasAct = true; 
             } catch (err) {
                 isProbing = false; reconn(); 
             } finally { isProbing = false; }
-        }, 15000); // 优化：将探针间隔放宽至 15 秒，减少不必要的 Worker 唤醒开销
+        }, 45000); // 优化：修改探针间隔放宽至 45000 毫秒 (45秒)，适应长视频缓冲机制
     };
 
     const cleanSock = () => { 
