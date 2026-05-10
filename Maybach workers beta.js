@@ -1,17 +1,13 @@
 /**
- * Date: 2026-05-08
- * Version: 2.6.8 (Gigabit V8-Bypass Edition - Optimized)
- * Description: Total obliteration of JS-level buffering with V8 branch unrolling. 
- * Micro-adjustments for memory leak prevention, internal DNS routing, and graceful connection degradation.
- */
+ * Date: 2026-05-10 17:35 (北京时间)
+ * Version: 3.0.0 (The Naked Truth - Pure Zero-Copy)
+*/
 
 import { connect as $c } from 'cloudflare:sockets';
 const _ = o => $c(o);
 
-// ================= 个人配置  =================
+// ================= 个人极速配置 =================
 const UUID = ""; 
-
-// 🚨 警告：千兆网络下，必须将此处替换为日本本地的优质 ProxyIP，否则速度会被彻底锁死！
 let PIP = 'ProxyIP.CMLiussss.net';  
 let SUB = 'owo.o00o.ooo';  
 let SUBAPI = 'https://subapi.cmliussss.net';  
@@ -20,7 +16,7 @@ const SBV12 = 'https://raw.githubusercontent.com/sinspired/sub-store-template/ma
 const SBV11 = 'https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json'; 
 const ST = "";  
 const ECH = true;  
-const ECH_DNS = 'https://doh.cmliussss.net/CMLiussss';  
+const ECH_DNS = 'https://odvr.nic.cz/doh';  
 const ECH_SNI = 'cloudflare-ech.com';  
 const FP = ECH ? 'chrome' : 'randomized';  
 
@@ -28,7 +24,6 @@ const te = new TextEncoder();
 const td = new TextDecoder();
 const K = {S5:'so'+'ck'+'s5',SK:'so'+'cks',PIP:'pro'+'xy'+'ip',HT:'http',PX:'pro'+'xy'};
 
-// 极速零拷贝 UUID 验证
 const EB = new Uint8Array(16);
 UUID.replace(/-/g, '').match(/.{2}/g).forEach((b, i) => EB[i] = parseInt(b, 16));
 const vID = u => u.length >= 17 && 
@@ -37,7 +32,7 @@ const vID = u => u.length >= 17 &&
     u[9]===EB[8] && u[10]===EB[9] && u[11]===EB[10] && u[12]===EB[11] && 
     u[13]===EB[12] && u[14]===EB[13] && u[15]===EB[14] && u[16]===EB[15];
 
-const MAX_RECONN = 10;
+const STALL_TO = 25000; 
 
 export default {
     async fetch(req, env, ctx) {
@@ -54,7 +49,7 @@ export default {
                     if (u.pathname === `/sub` && u.searchParams.get('uuid') !== UUID) return new Response("Invalid", { status: 403 });
                     return await hSub(req, env, u, UA, u.hostname);
                 }
-                return new Response("Active Sonar Streaming Engine v2.6.8 (Gigabit V8-Bypass) Active.", { status: 200 });
+                return new Response("Active Sonar Engine v3.7.0 (Pure Zero-Copy) Active.", { status: 200 });
             }
 
             if (u.pathname.includes('%3F')) {
@@ -66,8 +61,7 @@ export default {
             if (req.cf?.colo && activePip.toLowerCase().includes('cmliussss.net')) {
                 activePip = `${req.cf.colo}.PrOxYip.CmLiuSsSs.nEt:443`;
             } else if (activePip.includes(',')) {
-                // 优化：过滤可能的空字符串元素，提升随机抽取稳定性
-                const arr = activePip.split(',').map(s => s.trim()).filter(Boolean);
+                const arr = activePip.split(',');
                 activePip = arr[Math.floor(Math.random() * arr.length)];
             }
             
@@ -103,12 +97,10 @@ export default {
 };
 
 const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
-    let sock, w, r, inf, first = true, isDNS = false, udpWriter = null;
-    let reconns = 0, conn = false, reading = false;
-    let hasAct = false; 
+    let sock, inf, first = true, isDNS = false, udpWriter = null;
+    let conn = false, lastAct = Date.now(), stalls = 0; 
+    let pend = [];
     const tmrs = {};
-    let isReconnecting = false;
-    let isProbing = false; 
 
     const setupUDP = (header) => {
         let sent = false;
@@ -124,8 +116,7 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         readable.pipeTo(new WritableStream({
             async write(q) {
                 try {
-                    // 优化：改为 cloudflare-dns.com 触发内网短路路由，解析速度更快
-                    const res = await fetch('https://cloudflare-dns.com/dns-query', { method: 'POST', headers: { 'content-type': 'application/dns-message' }, body: q, cf:{cacheTtl:3600} });
+                    const res = await fetch('https://1.1.1.1/dns-query', { method: 'POST', headers: { 'content-type': 'application/dns-message' }, body: q, cf:{cacheTtl:3600} });
                     if (res.ok) {
                         const r8 = new Uint8Array(await res.arrayBuffer());
                         const out = new Uint8Array([...(sent ? [] : header), r8.length >> 8, r8.length & 0xff, ...r8]);
@@ -138,110 +129,76 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
         udpWriter = writable.getWriter();
     };
 
-    // 核心：V8 引擎分支预判穿透 (Hot Loop Unrolling)
-    const readLoop = async () => {
-        if (reading) return; reading = true;
-        try {
-            if (isWS && ws.readyState === 1) {
-                while (true) {
-                    const { done, value: v } = await r.read();
-                    if (done) break;
-                    if (v) { hasAct = true; ws.send(v); }
-                }
-            } else if (!isWS && cW) {
-                while (true) {
-                    const { done, value: v } = await r.read();
-                    if (done) break;
-                    if (v) { hasAct = true; cW.write(v).catch(()=>{}); }
-                }
-            } else {
-                while (true) { const { done } = await r.read(); if (done) break; }
-            }
-            cleanup(); if (isWS) ws.close(1000);
-        } catch (e) { 
-            // 优化：将 1011 改为 1006，防止部分客户端激进重试导致死锁
-            cleanup(); if (isWS && ws.readyState === 1) ws.close(1006); 
-        } finally { 
-            reading = false; 
-        }
-    };
-
-    const establish = async () => {
+    const establish = async (payload) => {
         try {
             sock = await tC(inf.host, inf.port, inf.addressType, pip, s5, es, gp); if (sock.opened) await sock.opened;
-            w = sock.writable.getWriter(); r = sock.readable.getReader(); 
             
+            // 极速握手响应
             if (!inf.sentHeader) {
                 if (isWS && ws.readyState === 1) ws.send(inf.header);
-                else if (!isWS && cW) { cW.write(inf.header).catch(()=>{}); cW.releaseLock(); }
+                else if (!isWS && cW) { await cW.write(inf.header).catch(()=>{}); } 
                 inf.sentHeader = true;
             }
-            conn = false; reconns = 0; hasAct = true; readLoop();
-        } catch (e) { conn = false; reconn(); } 
-    };
 
-    const reconn = async () => {
-        if (!inf || (isWS && ws.readyState !== 1)) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); return; }
-        if (reconns >= MAX_RECONN) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); return; }
-        
-        if (conn || isReconnecting) return; isReconnecting = true; reconns++; 
-        
-        let d = Math.max(50, Math.floor(Math.min(50 * Math.pow(1.5, reconns - 1), 3000) + (Math.random() - 0.5) * 600));
-        try {
-            cleanSock(); 
-            await new Promise(res => setTimeout(res, d)); conn = true;
-            
-            sock = await tC(inf.host, inf.port, inf.addressType, pip, s5, es, gp); if (sock.opened) await sock.opened;
-            w = sock.writable.getWriter(); r = sock.readable.getReader(); 
-            
-            if (!inf.sentHeader) {
-                if (isWS && ws.readyState === 1) ws.send(inf.header);
-                else if (!isWS && cW) { cW.write(inf.header).catch(()=>{}); cW.releaseLock(); }
-                inf.sentHeader = true;
+            const writer = sock.writable.getWriter();
+            if (payload && payload.byteLength) {
+                try { await writer.write(payload); } catch (e) {} 
             }
-            conn = false; reconns = 0; hasAct = true; readLoop();
+            if (pend.length > 0) {
+                for (const b of pend) { try { await writer.write(b); } catch(e){} }
+                pend = [];
+            }
+            writer.releaseLock();
+            conn = true;
+
+            // 🎯 剃刀行动：只保留最纯粹的零拷贝下行转发，没有任何阻碍
+            sock.readable.pipeTo(new WritableStream({
+                async write(chunk) {
+                    if (!chunk || !chunk.byteLength) return;
+                    lastAct = Date.now(); stalls = 0;
+                    
+                    if (isWS && ws.readyState === 1) {
+                        ws.send(chunk);
+                    } else if (!isWS && cW) {
+                        await cW.write(chunk).catch(()=>{});
+                    }
+                }
+            })).catch(() => {
+                cleanup();
+                if (isWS && ws.readyState === 1) ws.close(1000);
+            });
+
         } catch (e) { 
-            conn = false; 
-            if (reconns < MAX_RECONN && (!isWS || ws.readyState === 1)) setTimeout(() => { isReconnecting = false; reconn(); }, 500); 
-            else { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
-        } finally { isReconnecting = false; }
+            cleanup(); 
+            if (isWS && ws.readyState === 1) ws.close(1011); 
+        } 
     };
 
     const startTmrs = () => {
-        tmrs.ka = setInterval(async () => { 
-            if (conn || !w || isReconnecting || hasAct) {
-                hasAct = false; 
-                return;
+        tmrs.hc = setInterval(() => {
+            if (!conn) return;
+            if (Date.now() - lastAct > STALL_TO) {
+                stalls++;
+                if (stalls >= 2) {
+                    cleanup();
+                    if (isWS && ws.readyState === 1) ws.close(1000); 
+                }
+            } else {
+                stalls = 0;
             }
-
-            if (isProbing) return;
-            isProbing = true;
-
-            try {
-                // 仅发送最小空报文，触发活动即可，避免拥塞控制锁死
-                const probePromise = w.write(new Uint8Array(0));
-                // 优化：修改超时时间为 10000 毫秒 (10秒)，容忍长视频缓冲时的网络抖动
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Probe Timeout')), 10000));
-                await Promise.race([probePromise, timeoutPromise]);
-                hasAct = true; 
-            } catch (err) {
-                isProbing = false; reconn(); 
-            } finally { isProbing = false; }
-        }, 45000); // 优化：修改探针间隔放宽至 45000 毫秒 (45秒)，适应长视频缓冲机制
+        }, STALL_TO);
     };
 
     const cleanSock = () => { 
-        reading = false; 
-        try { r?.cancel(); } catch {} try { w?.abort(); } catch {} try { sock?.close(); } catch {} 
-        r = null; w = null; sock = null;
+        conn = false;
+        try { sock?.close(); } catch {} 
+        sock = null;
     };
     
     const cleanup = () => { 
         Object.values(tmrs).forEach(clearInterval); 
         cleanSock(); 
-        // 优化：彻底释放原始流，杜绝大流量测速后的 Worker 内存泄漏
-        try { cW?.close(); } catch {}
-        try { udpWriter?.close(); } catch {}
+        pend = []; 
     };
 
     const processData = async (data) => {
@@ -269,23 +226,26 @@ const handleProxyEngine = (cR, ws, cWS, cW, isWS, pip, s5, es, gp) => {
                     isDNS = true; setupUDP(header); udpWriter.write(payload).catch(()=>{}); return;
                 }
 
-                conn = true;
-                startTmrs(); establish();
-                if (payload.byteLength) {
-                     const sendInitial = async () => {
-                         while(!w) await new Promise(r => setTimeout(r, 10));
-                         try { await w.write(payload); } catch {}
-                     };
-                     sendInitial();
-                }
+                startTmrs();
+                establish(payload);
             } else {
                 if (isDNS) return udpWriter.write(data).catch(()=>{});
-                hasAct = true;
-                if (!conn && w) {
-                    try { await w.write(data); } catch { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
+                lastAct = Date.now();
+                
+                if (!conn) {
+                    if (pend.length < 5) pend.push(new Uint8Array(data)); 
+                } else {
+                    if (sock && sock.writable) {
+                        const writer = sock.writable.getWriter();
+                        await writer.write(data).catch(() => {
+                            cleanup(); 
+                            if (isWS && ws.readyState === 1) ws.close(1000); 
+                        });
+                        writer.releaseLock();
+                    }
                 }
             }
-        } catch (err) { cleanup(); if(isWS && ws.readyState === 1) ws.close(1006); }
+        } catch (err) { cleanup(); if(isWS) ws.close(1006); }
     };
 
     cR.pipeTo(new WritableStream({ write: processData })).catch(()=>{});
@@ -317,7 +277,7 @@ function parsePC(p){
   if(im){
     let val = im[1];
     if (val.includes(',')) {
-        const arr = val.split(',').map(s=>s.trim()).filter(Boolean);
+        const arr = val.split(',');
         val = arr[Math.floor(Math.random() * arr.length)];
     }
     const[a,rt]=pAddrPt(val);
