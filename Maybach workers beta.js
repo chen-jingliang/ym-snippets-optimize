@@ -1,9 +1,10 @@
+// Version: v1.0.0 | Time: 2026-05-11 10:12:15
 import { connect } from 'cloudflare:sockets';
 
 const te = new TextEncoder();
 const td = new TextDecoder();
 
-const myID = '';
+const myID = '00000000-0000-4000-b000-000000000000';
 
 let PIP = 'ProxyIP.CMLiussss.net';  
 let SUB = 'owo.o00o.ooo';  
@@ -39,7 +40,6 @@ export default {
         const isWS = req.headers.get('Upgrade')?.toLowerCase() === 'websocket';
         const u = new URL(req.url);
         
-        // 订阅路由拦截
         if (!isWS && !req.body) {
             const UA = (req.headers.get("User-Agent") || "").toLowerCase();
             const isSub = (u.pathname === `/${myID}` || u.pathname === `/sub`);
@@ -69,7 +69,6 @@ export default {
         let mode = 'default';
         let skJson;
 
-        // 构建高可用的 ProxyIP 容错池
         let proxyIPPool = [];
 
         if (sParam && !gParam) {
@@ -78,10 +77,10 @@ export default {
             mode = 'g'; skJson = getSKJson(gParam);
         } else if (pParamInput) {
             mode = 'p'; 
-            proxyIPPool.push(pParamInput); // 最高优先级：手动指定的 IP
+            proxyIPPool.push(pParamInput);
         } else {
-            if (PIP) proxyIPPool.push(PIP); // 次优先级：全局配置 IP
-            proxyIPPool.push(dynamicProxy); // 兜底：动态节点 IP
+            if (PIP) proxyIPPool.push(PIP);
+            proxyIPPool.push(dynamicProxy);
         }
 
         let clientRead, clientWrite, response, ws;
@@ -210,23 +209,20 @@ export default {
                         sock = connect({ hostname: addr, port });
                         await sock.opened;
                     } else {
-                        // 【核心改进】：原生逻辑与容错池循环
                         try {
-                            // 第一梯队：尝试直连目标
                             sock = connect({ hostname: addr, port });
                             await sock.opened;
                         } catch (err) {
                             sock = null;
                         }
 
-                        // 第二梯队：如果直连失败，无缝启用 ProxyIP 阵列（严格按你的优先级）
                         if (!sock && proxyIPPool.length > 0) {
                             for (const proxy of proxyIPPool) {
                                 try {
                                     const [ph, pp] = proxy.split(':');
                                     sock = connect({ hostname: ph, port: +(pp || 443) });
                                     await sock.opened;
-                                    break; // 只要有一个能连上，立刻跳出循环
+                                    break;
                                 } catch (e) {
                                     sock = null;
                                 }
@@ -241,7 +237,6 @@ export default {
                     return;
                 }
 
-                // 【核心改进】：防熔断，捕获底层 Socket 异常，防止 Worker 崩溃
                 sock.closed.catch(() => {});
                 remote = sock;
 
@@ -319,7 +314,6 @@ export default {
                         }
                     } catch (_) {
                     } finally {
-                        // 【核心改进】：对称关闭机制，确保任何一方断开时，所有资源立即且安全地释放，避免内存溢出
                         flush();
                         try { reader.releaseLock(); } catch { }
                         if (!isWS) { try { clientWrite.close(); } catch { } }
@@ -358,7 +352,7 @@ async function sConnect(targetHost, targetPort, skJson) {
         port: skJson.port
     });
     await sock.opened;
-    sock.closed.catch(() => {}); // 同步增加防崩守卫
+    sock.closed.catch(() => {});
     const w = sock.writable.getWriter();
     const r = sock.readable.getReader();
     await w.write(new Uint8Array([5, 2, 0, 2]));
@@ -377,7 +371,6 @@ async function sConnect(targetHost, targetPort, skJson) {
     return sock;
 }
 
-// ================= 从代码2接入的外部接口订阅与 ECH 逻辑 =================
 async function _getECH(h){try{const ps=h.split('.'),bs=[];for(const l of ps){const e=new TextEncoder().encode(l);bs.push(e.length,...e);}bs.push(0);const dn=new Uint8Array(bs);const pk=new Uint8Array(12+dn.length+4);const dv=new DataView(pk.buffer);dv.setUint16(0,Math.random()*65535|0);dv.setUint16(2,256);dv.setUint16(4,1);pk.set(dn,12);dv.setUint16(12+dn.length,65);dv.setUint16(14+dn.length,1);const rp=await fetch(ECH_DNS,{method:'POST',headers:{'Content-Type':'application/'+'dns'+'-message',Accept:'application/'+'dns'+'-message'},body:pk});if(!rp.ok)return null;const bf=new Uint8Array(await rp.arrayBuffer());const rv=new DataView(bf.buffer);const qc=rv.getUint16(4),ac=rv.getUint16(6);const sn=p=>{let c=p;while(c<bf.length){const n=bf[c];if(!n)return c+1;if((n&0xC0)===0xC0)return c+2;c+=n+1;}return c+1;};let o=12;for(let i=0;i<qc;i++)o=sn(o)+4;for(let i=0;i<ac&&o<bf.length;i++){o=sn(o);const tp=rv.getUint16(o);o+=2;o+=6;const rl=rv.getUint16(o);o+=2;if(tp===65){const rd=bf.slice(o,o+rl);let p=2;while(p<rd.length){const n=rd[p];if(!n){p++;break;}p+=n+1;}while(p+4<=rd.length){const k=(rd[p]<<8)|rd[p+1],ln=(rd[p+2]<<8)|rd[p+3];p+=4;if(k===5)return'-----BEGIN ECH CONFIGS-----\n'+btoa(String.fromCharCode(...rd.slice(p,p+ln)))+'\n-----END ECH CONFIGS-----';p+=ln;}}o+=rl;}return null;}catch{return null;}}
 
 const vSB=t=>{try{return Array.isArray(JSON.parse(t).outbounds)}catch{return!1}};
@@ -395,11 +388,7 @@ async function hSub(r,c,u,UA,h){
   
   let up=SUB.trim().replace(/^https?:\/\//,"").replace(/\/$/,"")||h;
   
-  // 1. 获取用户通过 URL 参数手动填写的 proxyip
   let pip = u.searchParams.get("proxyip"); 
-  
-  // 2. 只有当用户明确填写了 proxyip 时，才在节点伪装路径里加上 /p=xxx
-  // 否则默认保持干净的根路径 "/"
   let tp = (pip && pip.trim()) ? `/p=${pip.trim()}` : "/";
   
   const _gDU=()=>{if(!ST)return null;const _ecP=ECH?'&ech='+encodeURIComponent(ECH_SNI+'+'+ECH_DNS):'';const _bn=`${"vl"+"ess"}://${myID}@${up}:443?encryption=none&security=tls&sni=${h}&fp=${FP}&alpn=h3&type=ws&host=${h}&path=${encodeURIComponent(tp)}${_ecP}#Worker`;return`https://${up}/sub?base=${encodeURIComponent(_bn)}&token=${encodeURIComponent(ST)}`;};
