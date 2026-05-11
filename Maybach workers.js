@@ -4,7 +4,7 @@ import { connect } from 'cloudflare:sockets';
 const te = new TextEncoder();
 const td = new TextDecoder();
 
-const myID = '00000000-0000-4000-b000-000000000000';
+const myID = '';
 
 let PIP = 'ProxyIP.CMLiussss.net';  
 let SUB = 'owo.o00o.ooo';  
