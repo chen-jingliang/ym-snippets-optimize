@@ -1,1 +1,1 @@
-根据mingyu、AK、天书的snippets版本用AI修改
+Just a JOKE!
