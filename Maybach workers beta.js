@@ -67,9 +67,10 @@ export default {
         const dynamicProxy = `${colo}.PrOxYip.CmLiuSsSs.nEt:443`;
         
         let mode = 'default';
-        // 优先级：1. 手动指定的 proxyip -> 2. 全局配置的 PIP -> 3. 动态 CF 节点
-        let pParam = pParamInput || PIP || dynamicProxy;
         let skJson;
+
+        // 构建高可用的 ProxyIP 容错池
+        let proxyIPPool = [];
 
         if (sParam && !gParam) {
             mode = 's'; skJson = getSKJson(sParam);
@@ -77,6 +78,10 @@ export default {
             mode = 'g'; skJson = getSKJson(gParam);
         } else if (pParamInput) {
             mode = 'p'; 
+            proxyIPPool.push(pParamInput); // 最高优先级：手动指定的 IP
+        } else {
+            if (PIP) proxyIPPool.push(PIP); // 次优先级：全局配置 IP
+            proxyIPPool.push(dynamicProxy); // 兜底：动态节点 IP
         }
 
         let clientRead, clientWrite, response, ws;
@@ -201,21 +206,31 @@ export default {
                 try {
                     if (mode === 's' && skJson) {
                         sock = await sConnect(addr, port, skJson);
-                    } else if (mode === 'p' && pParamInput) {
-                        const [ph, pp] = pParamInput.split(':');
-                        sock = connect({ hostname: ph, port: +(pp || port) });
-                        await sock.opened;
                     } else if (mode === 'd') {
                         sock = connect({ hostname: addr, port });
                         await sock.opened;
                     } else {
+                        // 【核心改进】：原生逻辑与容错池循环
                         try {
+                            // 第一梯队：尝试直连目标
                             sock = connect({ hostname: addr, port });
                             await sock.opened;
                         } catch (err) {
-                            const [ph, pp] = pParam.split(':');
-                            sock = connect({ hostname: ph, port: +(pp || 443) });
-                            await sock.opened;
+                            sock = null;
+                        }
+
+                        // 第二梯队：如果直连失败，无缝启用 ProxyIP 阵列（严格按你的优先级）
+                        if (!sock && proxyIPPool.length > 0) {
+                            for (const proxy of proxyIPPool) {
+                                try {
+                                    const [ph, pp] = proxy.split(':');
+                                    sock = connect({ hostname: ph, port: +(pp || 443) });
+                                    await sock.opened;
+                                    break; // 只要有一个能连上，立刻跳出循环
+                                } catch (e) {
+                                    sock = null;
+                                }
+                            }
                         }
                     }
                 } catch (err) {}
@@ -226,6 +241,8 @@ export default {
                     return;
                 }
 
+                // 【核心改进】：防熔断，捕获底层 Socket 异常，防止 Worker 崩溃
+                sock.closed.catch(() => {});
                 remote = sock;
 
                 try {
@@ -302,9 +319,11 @@ export default {
                         }
                     } catch (_) {
                     } finally {
+                        // 【核心改进】：对称关闭机制，确保任何一方断开时，所有资源立即且安全地释放，避免内存溢出
                         flush();
                         try { reader.releaseLock(); } catch { }
                         if (!isWS) { try { clientWrite.close(); } catch { } }
+                        try { if (isWS && ws.readyState === 1) ws.close(1000); } catch { }
                     }
                 })();
 
@@ -339,6 +358,7 @@ async function sConnect(targetHost, targetPort, skJson) {
         port: skJson.port
     });
     await sock.opened;
+    sock.closed.catch(() => {}); // 同步增加防崩守卫
     const w = sock.writable.getWriter();
     const r = sock.readable.getReader();
     await w.write(new Uint8Array([5, 2, 0, 2]));
