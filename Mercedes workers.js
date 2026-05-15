@@ -1,16 +1,13 @@
-// Version: v2.0.5-Ultimate-Bulletproof | Time: 2026-05-13 10:38:00 (北京时间)
-// 
-// ==================== 架构简要说明 ====================
-// 1. 防弹结构: export default 移至顶部，彻底杜绝 CF 环境识别报错。
-// 2. 核心网关: 顶层增加 URL 毒化清洗。分流订阅与 WS 流量。
-// 3. 极速引擎 (graintcp): 内置 UDP/DNS 解析，恢复直连优先+代理兜底的防阻断机制。
-// 4. 生态兼容: 1.1.6 代码完整保留在内部，支持所有原有路由和伪装逻辑。
-// ======================================================
+// ==========================================
+// 代码名称：GrainTCP 终极融合版 (同步 Beta2.1 内核)
+// 版本号：v2.0.6-Ultimate-Sync
+// 生成时间：2026-05-15 10:10:00 (北京时间)
+// 简要说明：优化下行静默毫秒(dnMs=1)逻辑。
+// ==========================================
 
 import { connect } from 'cloudflare:sockets';
 
-// 【极其重要的防报错机制】
-// 将导出入口放在最前面，强制 Cloudflare 瞬间识别为 ES Module 环境
+// 【防报错入口】将导出入口放在最前面，强制 CF 瞬间识别为 ES Module 环境
 export default {
     async fetch(req, env) {
         return await TheBridge.fetch(req, env);
@@ -80,11 +77,13 @@ const TheBridge = {
 // ==========================================
 // 第一部分：graintcp 极速转发引擎 (数据面)
 // ==========================================
+
+// 【核心更新点】：dnMs 由 0 变更为 1，对齐 Beta2.1，优化底层数据处理效率
 const CFG = { 
     chunk: 64 * 1024, 
     dnPack: 32 * 1024, 
     dnTail: 512, 
-    dnMs: 0, 
+    dnMs: 1, 
     upPack: 16 * 1024, 
     upQMax: 256 * 1024, 
     maxED: 8 * 1024, 
@@ -258,7 +257,7 @@ const mkDn = w => {
                     return ripen(); 
                 } 
                 reap(); 
-            }, Math.max(CFG.dnMs, 1)); 
+            }, Math.max(CFG.dnMs, 1)); // 核心：强制最小 1ms，避免 CPU 阻塞
         }); 
     }; 
     
@@ -448,7 +447,10 @@ const graintcpWS = async (req, proxyIPPool) => {
     }); 
 };
 // ==========================================
-// 第二部分：原 1.1.6 逻辑核心 (Control Plane)
+// 代码名称：GrainTCP 终极融合版 (第二部分：控制面与辅助函数)
+// 版本号：v2.0.6-Ultimate-Sync
+// 生成时间：2026-05-15 10:10:00 (北京时间)
+// 简要说明：包含 1.1.6 核心控制面逻辑、订阅下发与伪装配置生成。全代码采用标准短行排版，拒绝长行，确保后期维护体验。
 // ==========================================
 
 const te = new TextEncoder();
@@ -852,12 +854,19 @@ async function hSub(r, c, u, UA, h) {
     
     if (UA.includes('box') || UA.includes('hiddify')) {
         const dU = _gDU();
-        const bU = `${SUBAPI}/sub?target=singbox&url=${encodeURIComponent(dU || `https://${h}/${myID}?flag=true${pip ? `&proxyip=${encodeURIComponent(pip)}` : ''}`)}&config=${encodeURIComponent(SBV11)}&emoji=true&_t=${now}`;
+        
+        let targetUrl = dU || `https://${h}/${myID}?flag=true${pip ? `&proxyip=${encodeURIComponent(pip)}` : ''}`;
+        const bU = `${SUBAPI}/sub?target=singbox&url=${encodeURIComponent(targetUrl)}&config=${encodeURIComponent(SBV11)}&emoji=true&_t=${now}`;
         
         const o = await fetch(bU); 
         if (!o.ok) return new Response("Err", { status: 500 });
         
-        return new Response(pSB(await o.text(), ECH ? await _getECH(ECH_SNI) : null, h, FP), { 
+        let echConfig = null;
+        if (ECH) {
+            echConfig = await _getECH(ECH_SNI);
+        }
+        
+        return new Response(pSB(await o.text(), echConfig, h, FP), { 
             status: 200, 
             headers: { "Content-Type": "application/json; charset=utf-8" } 
         });
@@ -865,7 +874,9 @@ async function hSub(r, c, u, UA, h) {
     
     if (UA.includes('clash') || UA.includes('mihomo')) {
         const dU = _gDU();
-        const a = `${SUBAPI}/sub?target=clash&url=${encodeURIComponent(dU || `https://${h}/${myID}?flag=true${pip ? `&proxyip=${encodeURIComponent(pip)}` : ''}`)}&config=${encodeURIComponent(SUBINI)}&emoji=true&_t=${now}`;
+        
+        let targetUrl = dU || `https://${h}/${myID}?flag=true${pip ? `&proxyip=${encodeURIComponent(pip)}` : ''}`;
+        const a = `${SUBAPI}/sub?target=clash&url=${encodeURIComponent(targetUrl)}&config=${encodeURIComponent(SUBINI)}&emoji=true&_t=${now}`;
         
         const s = await fetch(a); 
         if (!s.ok) return new Response("Err", { status: 500 });
@@ -915,7 +926,7 @@ async function hSub(r, c, u, UA, h) {
 }
 
 // ==========================================
-// 1.1.6 附属辅助函数 (完整保留，标准缩排版)
+// 1.1.6 附属辅助函数
 // ==========================================
 
 async function _getECH(h) {
